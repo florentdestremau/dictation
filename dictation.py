@@ -77,7 +77,11 @@ class AudioRecorder:
             self._stream.close()
             self._stream = None
 
-        audio = np.concatenate(self._frames) if self._frames else np.zeros((0, 1), dtype="int16")
+        audio = (
+            np.concatenate(self._frames)
+            if self._frames
+            else np.zeros((0, 1), dtype="int16")
+        )
         tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         with wave.open(tmp, "wb") as wf:
             wf.setnchannels(self.CHANNELS)
@@ -95,6 +99,7 @@ class LocalTranscriber:
     def _load_model(self):
         if self._model is None:
             from faster_whisper import WhisperModel
+
             self._model = WhisperModel(self._model_name, compute_type="int8")
 
     def transcribe(self, wav_path: str) -> str:
@@ -154,7 +159,7 @@ class DictationWindow:
         self._should_close = False
         self._poll_close()
 
-        width, height = 500, 200
+        width, height = 1000, 400
         sx = self.root.winfo_screenwidth() // 2 - width // 2
         sy = self.root.winfo_screenheight() // 2 - height // 2
         self.root.geometry(f"{width}x{height}+{sx}+{sy}")
@@ -204,14 +209,16 @@ class DictationWindow:
             self.text.config(state="normal")
             self.text.delete("1.0", "end")
             self.text.insert("1.0", self.result_text)
-            self.text.config(state="disabled")
+            self.text.focus_set()
             self.hint.config(text="[Entrée] copier  •  [Échap] annuler")
 
     def _on_enter(self, event):
         if self.state == self.STATE_RECORDING:
             wav_path = self.recorder.stop()
             self._set_state(self.STATE_TRANSCRIBING)
-            threading.Thread(target=self._transcribe, args=(wav_path,), daemon=True).start()
+            threading.Thread(
+                target=self._transcribe, args=(wav_path,), daemon=True
+            ).start()
         elif self.state == self.STATE_RESULT:
             subprocess.Popen(["wl-copy", "--", self.result_text])
             self._close()
@@ -278,7 +285,7 @@ def main():
     _write_pid()
     config = load_config()
     window = DictationWindow(config)
-    signal.signal(signal.SIGTERM, lambda *_: setattr(window, '_should_close', True))
+    signal.signal(signal.SIGTERM, lambda *_: setattr(window, "_should_close", True))
     try:
         window.run()
     finally:

@@ -1,5 +1,5 @@
 {
-  "backend": "local",
+  "backend": "groq",
   "local_model": "small",
-  "groq_model": "whisper-large-v3"
+  "groq_model": "whisper-large-v3-turbo"
 }
