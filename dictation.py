@@ -1,4 +1,4 @@
-#!/home/florent/dev/dictation/.venv/bin/python3
+#!/usr/bin/env python3
 """Dictée vocale pour Ubuntu/Wayland avec faster-whisper ou API Groq."""
 
 import json
