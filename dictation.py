@@ -171,6 +171,14 @@ class DictationWindow:
         self.text.pack(expand=True, fill="both", padx=16, pady=(0, 8))
         self.text.pack_forget()  # hidden initially
 
+        # Ctrl+Arrow / Ctrl+Backspace word navigation
+        self.text.bind("<Control-Left>", lambda e: (
+            self.text.mark_set("insert", "insert-1c wordstart"), "break"))
+        self.text.bind("<Control-Right>", lambda e: (
+            self.text.mark_set("insert", "insert wordend"), "break"))
+        self.text.bind("<Control-BackSpace>", lambda e: (
+            self.text.delete("insert-1c wordstart", "insert"), "break"))
+
         self.hint = tk.Label(self.root, text="", font=("Sans", 10), fg="gray")
         self.hint.pack(side="bottom", pady=(0, 8))
 
@@ -220,7 +228,7 @@ class DictationWindow:
                 target=self._transcribe, args=(wav_path,), daemon=True
             ).start()
         elif self.state == self.STATE_RESULT:
-            subprocess.Popen(["wl-copy", "--", self.result_text])
+            subprocess.Popen(["wl-copy", "--", self.text.get("1.0", "end-1c").strip()])
             self._close()
 
     def _on_escape(self, event):
