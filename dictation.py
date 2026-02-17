@@ -16,7 +16,8 @@ import numpy as np
 import sounddevice as sd
 
 PIDFILE = os.path.join(tempfile.gettempdir(), "dictation.pid")
-CONFIG_PATH = Path(__file__).parent / "config.json"
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "dictation"
+CONFIG_PATH = CONFIG_DIR / "config.json"
 
 DEFAULT_CONFIG = {
     "backend": "local",  # "local" or "groq"
@@ -25,23 +26,12 @@ DEFAULT_CONFIG = {
 }
 
 
-def _load_dotenv():
-    env_path = Path(__file__).parent / ".env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
-
-
 def load_config() -> dict:
-    _load_dotenv()
     config = DEFAULT_CONFIG.copy()
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH) as f:
             config.update(json.load(f))
-    config["groq_api_key"] = os.environ.get("GROQ_API_KEY", "")
+    config.setdefault("groq_api_key", os.environ.get("GROQ_API_KEY", ""))
     return config
 
 

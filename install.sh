@@ -14,6 +14,14 @@ echo "Creation de l'environnement virtuel..."
 python3 -m venv "$SCRIPT_DIR/.venv"
 "$SCRIPT_DIR/.venv/bin/pip" install -q -r "$SCRIPT_DIR/requirements.txt"
 
+# Configuration
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/dictation"
+mkdir -p "$CONFIG_DIR"
+if [ ! -f "$CONFIG_DIR/config.json" ]; then
+    echo "{}" > "$CONFIG_DIR/config.json"
+    echo "Config creee : $CONFIG_DIR/config.json"
+fi
+
 # Raccourci clavier GNOME
 echo "Configuration du raccourci clavier Alt+D..."
 EXISTING=$(gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings)

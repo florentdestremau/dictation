@@ -1,8 +1,8 @@
 # Dictation
 
-Outil de dictée vocale pour Ubuntu 24.04+ (Wayland/GNOME).
+Voice dictation tool for Ubuntu 24.04+ (Wayland/GNOME).
 
-Appuyez sur un raccourci clavier, dictez, et le texte transcrit est copié dans le presse-papier.
+Press a keyboard shortcut, speak, and the transcribed text is copied to your clipboard.
 
 ## Installation
 
@@ -12,36 +12,33 @@ cd dictation
 ./install.sh
 ```
 
-Le script installe les dépendances, crée l'environnement virtuel et configure le raccourci clavier **Alt+D**.
+The script installs dependencies, creates the virtual environment and sets up the **Alt+D** keyboard shortcut.
 
-Par défaut la transcription est locale via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (modèle `small`). Le modèle est téléchargé automatiquement au premier lancement (~500 Mo).
+Configuration is stored in `~/.config/dictation/config.json` (created automatically by `install.sh`).
 
-## Utilisation
+By default, transcription runs locally via [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (model `small`). The model is downloaded automatically on first launch (~500 MB).
 
-1. **Alt+D** : ouvre la fenêtre en mode enregistrement
-2. **Parlez** dans le micro
-3. **Entrée** : arrête l'enregistrement et lance la transcription
-4. Le texte s'affiche, vous pouvez l'éditer
-5. **Entrée** : copie dans le presse-papier et ferme
-6. **Échap** : ferme sans copier
-7. **Alt+D** (fenêtre ouverte) : ferme la fenêtre
+## Usage
 
-## Utiliser Groq au lieu du modèle local
+1. **Alt+D**: opens the recording window
+2. **Speak** into your microphone
+3. **Enter**: stops recording and starts transcription
+4. The text is displayed and can be edited
+5. **Enter**: copies to clipboard and closes
+6. **Escape**: closes without copying
+7. **Alt+D** (while window is open): closes the window
 
-Pour une transcription plus rapide via l'API [Groq](https://console.groq.com) (gratuit) :
+## Using Groq instead of the local model
 
-1. Créer une clé API sur [console.groq.com](https://console.groq.com)
-2. Créer un fichier `.env` :
+For faster transcription via the [Groq](https://console.groq.com) API (free):
 
-```
-GROQ_API_KEY=gsk_votre_cle_ici
-```
-
-3. Créer un fichier `config.json` :
+1. Create an API key at [console.groq.com](https://console.groq.com)
+2. Edit `~/.config/dictation/config.json`:
 
 ```json
 {
   "backend": "groq",
+  "groq_api_key": "gsk_your_key_here",
   "groq_model": "whisper-large-v3-turbo"
 }
 ```
