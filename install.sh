@@ -99,19 +99,19 @@ add_gnome_shortcut() {
 echo ""
 echo "Choisissez le mode de fonctionnement :"
 echo ""
-echo "1) Mode classique (Alt+D)"
+echo "1) Mode classique (Alt+Shift+D)"
 echo "   - Ouvre une fenetre pour dicter"
 echo "   - Affiche le texte pour relecture"
 echo "   - [Entree] pour copier manuellement"
 echo ""
 echo "2) Mode rapide (Alt+D)"
-echo "   - Ouvre une petite fenetre pour dicter"  
-echo "   - [Entree] transcrit et copie DIRECTEMENT"
-echo "   - Ferme automatiquement, pas de relecture"
+echo "   - Notifications uniquement (pas de fenetre)"
+echo "   - Texte copie directement dans le presse-papier"
+echo "   - Ctrl+V pour coller"
 echo ""
-echo "3) Les deux modes"
-echo "   - Alt+D : Mode classique avec relecture"
-echo "   - Alt+Maj+D : Mode rapide copie directe"
+echo "3) Les deux modes (recommande)"
+echo "   - Alt+D : Mode rapide (copie directe)"
+echo "   - Alt+Shift+D : Mode classique avec relecture"
 echo ""
 read -p "Votre choix (1/2/3) [3]: " choice
 choice=${choice:-3}
@@ -121,15 +121,15 @@ case "$choice" in
         echo ""
         echo "Configuration du mode classique..."
         chmod +x "$SCRIPT_DIR/dictation_launcher.sh"
-        add_gnome_shortcut "Dictation" "$SCRIPT_DIR/dictation_launcher.sh" "<Alt>d"
+        add_gnome_shortcut "Dictation" "$SCRIPT_DIR/dictation_launcher.sh" "<Alt><Shift>d"
         echo ""
         echo "Installation terminee !"
-        echo "Raccourci : Alt+D"
+        echo "Raccourci : Alt+Shift+D"
         echo ""
         echo "Usage :"
-        echo "  - Alt+D : Ouvre la fenetre"
-echo "  - Parlez, puis [Entree] pour arreter"
-echo "  - Relisez le texte, [Entree] pour copier"
+        echo "  - Alt+Shift+D : Ouvre la fenetre"
+        echo "  - Parlez, puis [Entree] pour arreter"
+        echo "  - Relisez le texte, [Entree] pour copier"
         ;;
     
     2)
@@ -142,9 +142,9 @@ echo "  - Relisez le texte, [Entree] pour copier"
         echo "Raccourci : Alt+D"
         echo ""
         echo "Usage :"
-        echo "  - Alt+D : Ouvre la fenetre"
-echo "  - Parlez, puis [Entree] pour copier directement"
-echo "  - Ferme automatiquement"
+        echo "  - Alt+D : Demarre l'enregistrement"
+        echo "  - Parlez, puis Alt+D pour arreter"
+        echo "  - Notification 'Texte copie', Ctrl+V pour coller"
         ;;
     
     3)
@@ -153,26 +153,26 @@ echo "  - Ferme automatiquement"
         
         # Rendre le launcher exécutable
         chmod +x "$SCRIPT_DIR/dictation_launcher.sh"
-        
-        # Mode classique
-        add_gnome_shortcut "Dictation" "$SCRIPT_DIR/dictation_launcher.sh" "<Alt>d"
-        
-        # Mode rapide
-        add_gnome_shortcut "Dictation Rapide" "$SCRIPT_DIR/dictation_launcher.sh --quick" "<Alt><Shift>d"
-        
+
+        # Mode rapide (sans fenêtre)
+        add_gnome_shortcut "Dictation Rapide" "$SCRIPT_DIR/dictation_launcher.sh --quick" "<Alt>d"
+
+        # Mode classique (avec fenêtre de relecture)
+        add_gnome_shortcut "Dictation" "$SCRIPT_DIR/dictation_launcher.sh" "<Alt><Shift>d"
+
         echo ""
         echo "Installation terminee !"
         echo ""
         echo "Raccourcis :"
-        echo "  Alt+D       : Mode classique (avec relecture)"
-        echo "  Alt+Maj+D   : Mode rapide (copie directe)"
-        echo ""
-        echo "Usage mode classique :"
-        echo "  - Alt+D, parlez, [Entree], relisez, [Entree] pour copier"
+        echo "  Alt+D       : Mode rapide (copie directe)"
+        echo "  Alt+Maj+D   : Mode classique (avec relecture)"
         echo ""
         echo "Usage mode rapide :"
-        echo "  - Alt+Maj+D, parlez, [Entree]"
-        echo "  - Le texte est transcrit, copié et collé automatiquement"
+        echo "  - Alt+D, parlez, notification 'Texte copie'"
+        echo "  - Ctrl+V pour coller"
+        echo ""
+        echo "Usage mode classique :"
+        echo "  - Alt+Maj+D, parlez, [Entree], relisez, [Entree] pour copier"
         ;;
     
     *)

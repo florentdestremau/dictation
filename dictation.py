@@ -133,44 +133,75 @@ def make_transcriber(config: dict):
     return LocalTranscriber(config["local_model"])
 
 
-def paste_text():
-    """Try to paste text at cursor position using available tools."""
-    # Try ydotool first (with input group if available)
+def notify(title: str, message: str = "", icon: str = ""):
+    """Send desktop notification."""
     try:
-        # First try direct execution (works after logout/login)
-        subprocess.run(
-            ["ydotool", "key", "29:1", "47:1", "47:0", "29:0"],
-            capture_output=True,
-            timeout=2,
-            check=True,
-        )
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        # Try with sg (switch group) for current session
-        try:
-            subprocess.run(
-                ["sg", "input", "-c", "ydotool key 29:1 47:1 47:0 29:0"],
-                capture_output=True,
-                timeout=2,
-                check=True,
-            )
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
-
-    # Try wtype
-    try:
-        subprocess.run(
-            ["wtype", "-M", "ctrl", "-k", "v", "-m", "ctrl"],
-            capture_output=True,
-            timeout=2,
-            check=True,
-        )
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        cmd = ["notify-send"]
+        if icon:
+            cmd.extend(["-i", icon])
+        cmd.extend([title, message])
+        subprocess.run(cmd, capture_output=True, timeout=5)
+    except Exception:
         pass
 
-    return False
+
+class QuickModeRecorder:
+    """Headless mode with notifications, no window, preserves focus."""
+
+    def __init__(self, config: dict):
+        self.config = config
+        self.recorder = AudioRecorder()
+        self.transcriber = make_transcriber(config)
+        self._recording = False
+        self._stop_event = threading.Event()
+        self._transcription_thread: threading.Thread | None = None
+
+    def start(self):
+        """Start recording in headless mode."""
+        self._recording = True
+        self._stop_event.clear()
+        notify("🎤 Dictée", "Enregistrement démarré", "microphone-sensitivity-high")
+        self.recorder.start()
+
+    def stop_and_transcribe(self):
+        """Stop recording, transcribe, and copy to clipboard."""
+        if not self._recording:
+            return
+
+        notify("⏳ Dictée", "Transcription en cours...", "dialog-information")
+
+        wav_path = self.recorder.stop()
+        self._recording = False
+
+        def transcribe_thread():
+            try:
+                text = self.transcriber.transcribe(wav_path)
+                if text and not text.startswith("["):
+                    # Copier dans le presse-papier
+                    subprocess.Popen(
+                        ["wl-copy", "--", text],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    notify(
+                        "✅ Dictée",
+                        f"Texte copié : {text[:50]}...",
+                        "dialog-information",
+                    )
+                else:
+                    notify("❌ Dictée", "Aucun texte détecté", "dialog-error")
+            except Exception as e:
+                notify("❌ Dictée", f"Erreur : {str(e)[:50]}", "dialog-error")
+            finally:
+                try:
+                    os.unlink(wav_path)
+                except:
+                    pass
+
+        self._transcription_thread = threading.Thread(
+            target=transcribe_thread, daemon=True
+        )
+        self._transcription_thread.start()
 
 
 class DictationWindow:
@@ -193,56 +224,38 @@ class DictationWindow:
         self._should_close = False
         self._poll_close()
 
-        if quick_mode:
-            # Petite fenêtre en mode quick
-            width, height = 400, 150
-            sx = self.root.winfo_screenwidth() // 2 - width // 2
-            sy = self.root.winfo_screenheight() // 2 - height // 2
-            self.root.geometry(f"{width}x{height}+{sx}+{sy}")
+        # Fenêtre normale avec édition
+        width, height = 1000, 400
+        sx = self.root.winfo_screenwidth() // 2 - width // 2
+        sy = self.root.winfo_screenheight() // 2 - height // 2
+        self.root.geometry(f"{width}x{height}+{sx}+{sy}")
 
-            self.label = tk.Label(
-                self.root, text="", font=("Sans", 16), justify="center"
-            )
-            self.label.pack(expand=True, padx=16, pady=16)
+        self.label = tk.Label(self.root, text="", font=("Sans", 14), justify="center")
+        self.label.pack(padx=16, pady=16)
 
-            self.text = None  # Pas de zone de texte en mode quick
-            self.hint = tk.Label(self.root, text="", font=("Sans", 10), fg="gray")
-            self.hint.pack(side="bottom", pady=(0, 8))
-        else:
-            # Fenêtre normale avec édition
-            width, height = 1000, 400
-            sx = self.root.winfo_screenwidth() // 2 - width // 2
-            sy = self.root.winfo_screenheight() // 2 - height // 2
-            self.root.geometry(f"{width}x{height}+{sx}+{sy}")
+        self.text = tk.Text(self.root, font=("Sans", 13), wrap="word", height=6)
+        self.text.pack(expand=True, fill="both", padx=16, pady=(0, 8))
+        self.text.pack_forget()  # hidden initially
 
-            self.label = tk.Label(
-                self.root, text="", font=("Sans", 14), justify="center"
-            )
-            self.label.pack(padx=16, pady=16)
+        # Ctrl+Arrow / Ctrl+Backspace word navigation
+        self.text.bind(
+            "<Control-Left>",
+            lambda e: (
+                self.text.mark_set("insert", "insert-1c wordstart"),
+                "break",
+            ),
+        )
+        self.text.bind(
+            "<Control-Right>",
+            lambda e: (self.text.mark_set("insert", "insert wordend"), "break"),
+        )
+        self.text.bind(
+            "<Control-BackSpace>",
+            lambda e: (self.text.delete("insert-1c wordstart", "insert"), "break"),
+        )
 
-            self.text = tk.Text(self.root, font=("Sans", 13), wrap="word", height=6)
-            self.text.pack(expand=True, fill="both", padx=16, pady=(0, 8))
-            self.text.pack_forget()  # hidden initially
-
-            # Ctrl+Arrow / Ctrl+Backspace word navigation
-            self.text.bind(
-                "<Control-Left>",
-                lambda e: (
-                    self.text.mark_set("insert", "insert-1c wordstart"),
-                    "break",
-                ),
-            )
-            self.text.bind(
-                "<Control-Right>",
-                lambda e: (self.text.mark_set("insert", "insert wordend"), "break"),
-            )
-            self.text.bind(
-                "<Control-BackSpace>",
-                lambda e: (self.text.delete("insert-1c wordstart", "insert"), "break"),
-            )
-
-            self.hint = tk.Label(self.root, text="", font=("Sans", 10), fg="gray")
-            self.hint.pack(side="bottom", pady=(0, 8))
+        self.hint = tk.Label(self.root, text="", font=("Sans", 10), fg="gray")
+        self.hint.pack(side="bottom", pady=(0, 8))
 
         self.root.bind("<Return>", self._on_enter)
         self.root.bind("<Escape>", self._on_escape)
@@ -270,36 +283,18 @@ class DictationWindow:
                 self.text.pack_forget()
             self.label.pack(padx=16, pady=16)
             self.label.config(text="\U0001f3a4 Enregistrement...")
-            if self.quick_mode:
-                self.hint.config(text="[Entrée] arrêter et copier  •  [Échap] annuler")
-            else:
-                self.hint.config(text="[Entrée] arrêter  •  [Échap] annuler")
+            self.hint.config(text="[Entrée] arrêter  •  [Échap] annuler")
         elif state == self.STATE_TRANSCRIBING:
             self.label.config(text="\u23f3 Transcription...")
             self.hint.config(text="")
         elif state == self.STATE_RESULT:
-            if self.quick_mode:
-                # En mode quick, on copie automatiquement et on essaie de coller
-                if self.result_text and not self.result_text.startswith("[Erreur]"):
-                    subprocess.run(["wl-copy", "--", self.result_text], check=True)
-                    # Petit délai pour que le presse-papier soit prêt
-                    import time
-
-                    time.sleep(0.1)
-                    # Essayer de coller automatiquement
-                    if not paste_text():
-                        # Si le collage échoue, on laisse le texte dans le presse-papier
-                        print("Texte copié dans le presse-papier (collez avec Ctrl+V)")
-                self._close()
-            else:
-                # Mode normal avec édition
-                self.label.pack_forget()
-                self.text.pack(expand=True, fill="both", padx=16, pady=(0, 8))
-                self.text.config(state="normal")
-                self.text.delete("1.0", "end")
-                self.text.insert("1.0", self.result_text)
-                self.text.focus_set()
-                self.hint.config(text="[Entrée] copier  •  [Échap] annuler")
+            self.label.pack_forget()
+            self.text.pack(expand=True, fill="both", padx=16, pady=(0, 8))
+            self.text.config(state="normal")
+            self.text.delete("1.0", "end")
+            self.text.insert("1.0", self.result_text)
+            self.text.focus_set()
+            self.hint.config(text="[Entrée] copier  •  [Échap] annuler")
 
     def _on_enter(self, event):
         if self.state == self.STATE_RECORDING:
@@ -309,7 +304,11 @@ class DictationWindow:
                 target=self._transcribe, args=(wav_path,), daemon=True
             ).start()
         elif self.state == self.STATE_RESULT:
-            subprocess.Popen(["wl-copy", "--", self.text.get("1.0", "end-1c").strip()])
+            subprocess.Popen(
+                ["wl-copy", "--", self.text.get("1.0", "end-1c").strip()],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             self._close()
 
     def _on_escape(self, event):
@@ -326,6 +325,10 @@ class DictationWindow:
 
     def run(self):
         self.root.mainloop()
+
+
+# Global instance for quick headless mode
+_quick_recorder: QuickModeRecorder | None = None
 
 
 def _is_our_process(pid: int) -> bool:
@@ -373,20 +376,68 @@ def main():
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="Mode rapide : dicte et copie directement sans édition",
+        help="Mode rapide : notification sans fenêtre, préserve le focus",
     )
     args = parser.parse_args()
 
-    if _kill_existing():
-        sys.exit(0)
-    _write_pid()
     config = load_config()
-    window = DictationWindow(config, quick_mode=args.quick)
-    signal.signal(signal.SIGTERM, lambda *_: setattr(window, "_should_close", True))
-    try:
-        window.run()
-    finally:
-        _cleanup_pid()
+
+    if args.quick:
+        # Mode headless avec notifications
+        # Vérifier si une instance tourne déjà
+        try:
+            with open(PIDFILE) as f:
+                pid = int(f.read().strip())
+            if _is_our_process(pid):
+                # Toggle: envoyer signal pour arrêter
+                try:
+                    os.kill(pid, signal.SIGUSR1)
+                    sys.exit(0)
+                except ProcessLookupError:
+                    pass
+        except (FileNotFoundError, ValueError):
+            pass
+
+        # Démarrer nouvelle instance
+        _write_pid()
+
+        recorder = QuickModeRecorder(config)
+        global _quick_recorder
+        _quick_recorder = recorder
+
+        def handle_toggle(signum, frame):
+            recorder.stop_and_transcribe()
+            # Ne pas exit ici, laisser la boucle principale attendre la fin de la transcription
+
+        signal.signal(signal.SIGUSR1, handle_toggle)
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
+        recorder.start()
+
+        # Maintenir le process en vie jusqu'à ce que la transcription soit terminée
+        try:
+            while recorder._recording:
+                import time
+
+                time.sleep(0.1)
+            # Attendre que la transcription soit terminée
+            if recorder._transcription_thread:
+                recorder._transcription_thread.join(timeout=30)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            _cleanup_pid()
+    else:
+        # Mode normal avec fenêtre
+        if _kill_existing():
+            sys.exit(0)
+        _write_pid()
+        window = DictationWindow(config, quick_mode=False)
+        signal.signal(signal.SIGTERM, lambda *_: setattr(window, "_should_close", True))
+        try:
+            window.run()
+        finally:
+            _cleanup_pid()
 
 
 if __name__ == "__main__":
