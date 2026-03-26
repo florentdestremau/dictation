@@ -13,6 +13,7 @@ import tkinter as tk
 import wave
 from pathlib import Path
 
+import notify2
 import numpy as np
 import sounddevice as sd
 
@@ -133,16 +134,45 @@ def make_transcriber(config: dict):
     return LocalTranscriber(config["local_model"])
 
 
+class NotificationManager:
+    """Gestionnaire de notification unique qui se met à jour."""
+
+    def __init__(self):
+        self.notification = None
+        try:
+            notify2.init("Dictée")
+        except Exception:
+            pass
+
+    def show(self, title: str, message: str = "", icon: str = ""):
+        """Affiche ou met à jour la notification."""
+        try:
+            if self.notification is None:
+                self.notification = notify2.Notification(title, message, icon)
+                self.notification.set_timeout(5000)  # 5 secondes par défaut
+            else:
+                self.notification.update(title, message, icon)
+            self.notification.show()
+        except Exception:
+            pass
+
+    def close(self):
+        """Ferme la notification."""
+        try:
+            if self.notification:
+                self.notification.close()
+                self.notification = None
+        except Exception:
+            pass
+
+
+# Instance globale du gestionnaire de notification
+_notification_mgr = NotificationManager()
+
+
 def notify(title: str, message: str = "", icon: str = ""):
-    """Send desktop notification."""
-    try:
-        cmd = ["notify-send"]
-        if icon:
-            cmd.extend(["-i", icon])
-        cmd.extend([title, message])
-        subprocess.run(cmd, capture_output=True, timeout=5)
-    except Exception:
-        pass
+    """Met à jour la notification unique."""
+    _notification_mgr.show(title, message, icon)
 
 
 class QuickModeRecorder:
@@ -193,14 +223,13 @@ class QuickModeRecorder:
             except Exception as e:
                 notify("❌ Dictée", f"Erreur : {str(e)[:50]}", "dialog-error")
             finally:
+                _notification_mgr.close()
                 try:
                     os.unlink(wav_path)
-                except:
+                except Exception:
                     pass
 
-        self._transcription_thread = threading.Thread(
-            target=transcribe_thread, daemon=True
-        )
+        self._transcription_thread = threading.Thread(target=transcribe_thread)
         self._transcription_thread.start()
 
 
