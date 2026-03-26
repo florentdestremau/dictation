@@ -8,7 +8,7 @@ echo "=== Dictation - Installation ==="
 
 # Dependances systeme
 echo "Installation des dependances systeme..."
-sudo apt install -y python3-tk python3-venv wl-clipboard libnotify-bin
+sudo apt install -y python3-venv wl-clipboard libnotify-bin
 
 # Outils pour collage automatique
 echo ""
