@@ -9,7 +9,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-import tkinter as tk
 import wave
 from pathlib import Path
 
@@ -233,130 +232,6 @@ class QuickModeRecorder:
         self._transcription_thread.start()
 
 
-class DictationWindow:
-    STATE_RECORDING = "recording"
-    STATE_TRANSCRIBING = "transcribing"
-    STATE_RESULT = "result"
-
-    def __init__(self, config: dict, quick_mode: bool = False):
-        self.recorder = AudioRecorder()
-        self.transcriber = make_transcriber(config)
-        self.result_text = ""
-        self.quick_mode = quick_mode
-
-        self.root = tk.Tk()
-        self.root.title("Dictée")
-        self.root.attributes("-topmost", True)
-        self.root.protocol("WM_DELETE_WINDOW", self._close)
-
-        # Poll for SIGTERM flag
-        self._should_close = False
-        self._poll_close()
-
-        # Fenêtre normale avec édition
-        width, height = 1000, 400
-        sx = self.root.winfo_screenwidth() // 2 - width // 2
-        sy = self.root.winfo_screenheight() // 2 - height // 2
-        self.root.geometry(f"{width}x{height}+{sx}+{sy}")
-
-        self.label = tk.Label(self.root, text="", font=("Sans", 14), justify="center")
-        self.label.pack(padx=16, pady=16)
-
-        self.text = tk.Text(self.root, font=("Sans", 13), wrap="word", height=6)
-        self.text.pack(expand=True, fill="both", padx=16, pady=(0, 8))
-        self.text.pack_forget()  # hidden initially
-
-        # Ctrl+Arrow / Ctrl+Backspace word navigation
-        self.text.bind(
-            "<Control-Left>",
-            lambda e: (
-                self.text.mark_set("insert", "insert-1c wordstart"),
-                "break",
-            ),
-        )
-        self.text.bind(
-            "<Control-Right>",
-            lambda e: (self.text.mark_set("insert", "insert wordend"), "break"),
-        )
-        self.text.bind(
-            "<Control-BackSpace>",
-            lambda e: (self.text.delete("insert-1c wordstart", "insert"), "break"),
-        )
-
-        self.hint = tk.Label(self.root, text="", font=("Sans", 10), fg="gray")
-        self.hint.pack(side="bottom", pady=(0, 8))
-
-        self.root.bind("<Return>", self._on_enter)
-        self.root.bind("<Escape>", self._on_escape)
-
-        self._set_state(self.STATE_RECORDING)
-        self.recorder.start()
-
-    def _poll_close(self):
-        if self._should_close:
-            self._close()
-        else:
-            self.root.after(100, self._poll_close)
-
-    def _close(self):
-        try:
-            self.root.quit()
-            self.root.destroy()
-        except tk.TclError:
-            pass
-
-    def _set_state(self, state: str):
-        self.state = state
-        if state == self.STATE_RECORDING:
-            if self.text:
-                self.text.pack_forget()
-            self.label.pack(padx=16, pady=16)
-            self.label.config(text="\U0001f3a4 Enregistrement...")
-            self.hint.config(text="[Entrée] arrêter  •  [Échap] annuler")
-        elif state == self.STATE_TRANSCRIBING:
-            self.label.config(text="\u23f3 Transcription...")
-            self.hint.config(text="")
-        elif state == self.STATE_RESULT:
-            self.label.pack_forget()
-            self.text.pack(expand=True, fill="both", padx=16, pady=(0, 8))
-            self.text.config(state="normal")
-            self.text.delete("1.0", "end")
-            self.text.insert("1.0", self.result_text)
-            self.text.focus_set()
-            self.hint.config(text="[Entrée] copier  •  [Échap] annuler")
-
-    def _on_enter(self, event):
-        if self.state == self.STATE_RECORDING:
-            wav_path = self.recorder.stop()
-            self._set_state(self.STATE_TRANSCRIBING)
-            threading.Thread(
-                target=self._transcribe, args=(wav_path,), daemon=True
-            ).start()
-        elif self.state == self.STATE_RESULT:
-            subprocess.Popen(
-                ["wl-copy", "--", self.text.get("1.0", "end-1c").strip()],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            self._close()
-
-    def _on_escape(self, event):
-        if self.state == self.STATE_RECORDING:
-            self.recorder.stop()
-        self._close()
-
-    def _transcribe(self, wav_path: str):
-        try:
-            self.result_text = self.transcriber.transcribe(wav_path)
-        except Exception as e:
-            self.result_text = f"[Erreur] {e}"
-        self.root.after(0, self._set_state, self.STATE_RESULT)
-
-    def run(self):
-        self.root.mainloop()
-
-
-# Global instance for quick headless mode
 _quick_recorder: QuickModeRecorder | None = None
 
 
@@ -401,72 +276,52 @@ def _cleanup_pid(*_):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Dictée vocale")
-    parser.add_argument(
-        "--quick",
-        action="store_true",
-        help="Mode rapide : notification sans fenêtre, préserve le focus",
-    )
-    args = parser.parse_args()
-
     config = load_config()
 
-    if args.quick:
-        # Mode headless avec notifications
-        # Vérifier si une instance tourne déjà
-        try:
-            with open(PIDFILE) as f:
-                pid = int(f.read().strip())
-            if _is_our_process(pid):
-                # Toggle: envoyer signal pour arrêter
-                try:
-                    os.kill(pid, signal.SIGUSR1)
-                    sys.exit(0)
-                except ProcessLookupError:
-                    pass
-        except (FileNotFoundError, ValueError):
-            pass
+    # Mode headless avec notifications (seul mode disponible)
+    # Vérifier si une instance tourne déjà
+    try:
+        with open(PIDFILE) as f:
+            pid = int(f.read().strip())
+        if _is_our_process(pid):
+            # Toggle: envoyer signal pour arrêter
+            try:
+                os.kill(pid, signal.SIGUSR1)
+                sys.exit(0)
+            except ProcessLookupError:
+                pass
+    except (FileNotFoundError, ValueError):
+        pass
 
-        # Démarrer nouvelle instance
-        _write_pid()
+    # Démarrer nouvelle instance
+    _write_pid()
 
-        recorder = QuickModeRecorder(config)
-        global _quick_recorder
-        _quick_recorder = recorder
+    recorder = QuickModeRecorder(config)
+    global _quick_recorder
+    _quick_recorder = recorder
 
-        def handle_toggle(signum, frame):
-            recorder.stop_and_transcribe()
-            # Ne pas exit ici, laisser la boucle principale attendre la fin de la transcription
+    def handle_toggle(signum, frame):
+        recorder.stop_and_transcribe()
+        # Ne pas exit ici, laisser la boucle principale attendre la fin de la transcription
 
-        signal.signal(signal.SIGUSR1, handle_toggle)
-        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    signal.signal(signal.SIGUSR1, handle_toggle)
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
-        recorder.start()
+    recorder.start()
 
-        # Maintenir le process en vie jusqu'à ce que la transcription soit terminée
-        try:
-            while recorder._recording:
-                import time
+    # Maintenir le process en vie jusqu'à ce que la transcription soit terminée
+    try:
+        while recorder._recording:
+            import time
 
-                time.sleep(0.1)
-            # Attendre que la transcription soit terminée
-            if recorder._transcription_thread:
-                recorder._transcription_thread.join(timeout=30)
-        except KeyboardInterrupt:
-            pass
-        finally:
-            _cleanup_pid()
-    else:
-        # Mode normal avec fenêtre
-        if _kill_existing():
-            sys.exit(0)
-        _write_pid()
-        window = DictationWindow(config, quick_mode=False)
-        signal.signal(signal.SIGTERM, lambda *_: setattr(window, "_should_close", True))
-        try:
-            window.run()
-        finally:
-            _cleanup_pid()
+            time.sleep(0.1)
+        # Attendre que la transcription soit terminée
+        if recorder._transcription_thread:
+            recorder._transcription_thread.join(timeout=30)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        _cleanup_pid()
 
 
 if __name__ == "__main__":

@@ -97,89 +97,27 @@ add_gnome_shortcut() {
 
 # Choix du mode
 echo ""
-echo "Choisissez le mode de fonctionnement :"
+echo "=== Installation du mode rapide ==="
 echo ""
-echo "1) Mode classique (Alt+Shift+D)"
-echo "   - Ouvre une fenetre pour dicter"
-echo "   - Affiche le texte pour relecture"
-echo "   - [Entree] pour copier manuellement"
+echo "Raccourci : Alt+D"
 echo ""
-echo "2) Mode rapide (Alt+D)"
-echo "   - Notifications uniquement (pas de fenetre)"
-echo "   - Texte copie directement dans le presse-papier"
-echo "   - Ctrl+V pour coller"
+echo "Usage :"
+echo "  - Alt+D : Démarre l'enregistrement"
+echo "  - Parlez, puis Alt+D pour arrêter"
+echo "  - Le texte est copié automatiquement"
+echo "  - Ctrl+V pour coller"
 echo ""
-echo "3) Les deux modes (recommande)"
-echo "   - Alt+D : Mode rapide (copie directe)"
-echo "   - Alt+Shift+D : Mode classique avec relecture"
+
+# Rendre le launcher exécutable
+chmod +x "$SCRIPT_DIR/dictation_launcher.sh"
+
+# Mode rapide uniquement
+add_gnome_shortcut "Dictation Rapide" "$SCRIPT_DIR/dictation_launcher.sh --quick" "<Alt>d"
+
 echo ""
-read -p "Votre choix (1/2/3) [3]: " choice
-choice=${choice:-3}
-
-case "$choice" in
-    1)
-        echo ""
-        echo "Configuration du mode classique..."
-        chmod +x "$SCRIPT_DIR/dictation_launcher.sh"
-        add_gnome_shortcut "Dictation" "$SCRIPT_DIR/dictation_launcher.sh" "<Alt><Shift>d"
-        echo ""
-        echo "Installation terminee !"
-        echo "Raccourci : Alt+Shift+D"
-        echo ""
-        echo "Usage :"
-        echo "  - Alt+Shift+D : Ouvre la fenetre"
-        echo "  - Parlez, puis [Entree] pour arreter"
-        echo "  - Relisez le texte, [Entree] pour copier"
-        ;;
-    
-    2)
-        echo ""
-        echo "Configuration du mode rapide..."
-        chmod +x "$SCRIPT_DIR/dictation_launcher.sh"
-        add_gnome_shortcut "Dictation Rapide" "$SCRIPT_DIR/dictation_launcher.sh --quick" "<Alt>d"
-        echo ""
-        echo "Installation terminee !"
-        echo "Raccourci : Alt+D"
-        echo ""
-        echo "Usage :"
-        echo "  - Alt+D : Demarre l'enregistrement"
-        echo "  - Parlez, puis Alt+D pour arreter"
-        echo "  - Notification 'Texte copie', Ctrl+V pour coller"
-        ;;
-    
-    3)
-        echo ""
-        echo "Configuration des deux modes..."
-        
-        # Rendre le launcher exécutable
-        chmod +x "$SCRIPT_DIR/dictation_launcher.sh"
-
-        # Mode rapide (sans fenêtre)
-        add_gnome_shortcut "Dictation Rapide" "$SCRIPT_DIR/dictation_launcher.sh --quick" "<Alt>d"
-
-        # Mode classique (avec fenêtre de relecture)
-        add_gnome_shortcut "Dictation" "$SCRIPT_DIR/dictation_launcher.sh" "<Alt><Shift>d"
-
-        echo ""
-        echo "Installation terminee !"
-        echo ""
-        echo "Raccourcis :"
-        echo "  Alt+D       : Mode rapide (copie directe)"
-        echo "  Alt+Maj+D   : Mode classique (avec relecture)"
-        echo ""
-        echo "Usage mode rapide :"
-        echo "  - Alt+D, parlez, notification 'Texte copie'"
-        echo "  - Ctrl+V pour coller"
-        echo ""
-        echo "Usage mode classique :"
-        echo "  - Alt+Maj+D, parlez, [Entree], relisez, [Entree] pour copier"
-        ;;
-    
-    *)
-        echo "Choix invalide"
-        exit 1
-        ;;
-esac
+echo "Installation terminée !"
+echo ""
+echo "Raccourci configuré : Alt+D"
 
 echo ""
 echo "Premier lancement : le modele whisper sera telecharge (~500 Mo si mode local)"
